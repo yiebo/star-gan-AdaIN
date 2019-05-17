@@ -1,23 +1,27 @@
 import tensorflow as tf
-from model import u_net
+from model import generator
+from read import label_size as laten_size
 import cv2
 from ops import *
 import os
+import glob
 
-x = tf.placeholder(tf.float16, shape=[None, None, None, 3])
+x = tf.placeholder(tf.float32, shape=[None, None, None, 3])
+latent = tf.placeholder(tf.float32, shape=[None, laten_size])
+
+with tf.name_scope('latent_input'):
+    latent_std = tf.random_normal(tf.shape(latent), mean=0.0, stddev=0.01, dtype=tf.float32)
+    latent_ = latent + latent_std
+    latent_random = tf.random_normal([tf.shape(latent)[0], 128], dtype=tf.float32)
+    latent_ = tf.concat([latent_, latent_random], 1)
 
 with tf.variable_scope('generator', dtype=tf.float16,
                        custom_getter=float32_variable_storage_getter):
-    fake_x = u_net(x, name="x2y")
-    fake_y = u_net(x, name="y2x")
+    y = generator(x, latent_, name="generator", dtype=tf.float16)
 
+y = tf.minimum(y, 1)
 
-# output = tf.cond(y_real < x_real, lambda: fake_y, lambda: fake_x)
-out_f = tf.minimum(tf.cast(fake_y, tf.float32), 1)
-out_m = tf.minimum(tf.cast(fake_x, tf.float32), 1)
-# cap = cv2.VideoCapture(0)
 saver = tf.train.Saver()
-
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
@@ -26,14 +30,13 @@ if not os.path.exists('input'):
 if not os.path.exists('output'):
     os.makedirs('output')
 
-files = os.listdir('input')
+files = glob.glob('input/*')
 images = []
 
 for file in files:
-    image = cv2.imread(f'input/{file}')
+    image = cv2.imread(file)
     image = cv2.resize(image, (208, 208))
     image = image / 255.0
-
     image = image[..., ::-1]
     images.append(image)
 
@@ -43,10 +46,7 @@ with tf.Session(config=config) as sess:
 
     # Our operations on the frame come here
     for idx in range(0, len(images), 5):
-        images_f, images_m = sess.run([out_f, out_m], feed_dict={x: images[idx:idx + 5]})
-        images_f = images_f[..., ::-1] * 255
-        images_m = images_m[..., ::-1] * 255
-        for image_m, image_f, file in zip(images_m, images_f, files[idx:idx + 5]):
-            name = os.path.splitext(file)[0]
-            cv2.imwrite(f'output/{name}_female.jpg', image_f)
-            cv2.imwrite(f'output/{name}_male.jpg', image_m)
+        images_out = sess.run(y, feed_dict={x: images[idx:idx + 5]})
+        images_out = images_out[..., ::-1] * 255
+        for idy, image in enumerate(images_out):
+            cv2.imwrite(f'output/{idx+idy:02d}.jpg', image)
