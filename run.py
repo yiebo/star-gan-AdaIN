@@ -6,7 +6,7 @@ from ops import *
 import os
 import glob
 
-x = tf.placeholder(tf.float32, shape=[None, None, None, 3])
+x = tf.placeholder(tf.float32, shape=[None, 208, 208, 3])
 latent = tf.placeholder(tf.float32, shape=[None, laten_size])
 
 with tf.name_scope('latent_input'):
@@ -17,7 +17,7 @@ with tf.name_scope('latent_input'):
 
 with tf.variable_scope('generator', dtype=tf.float16,
                        custom_getter=float32_variable_storage_getter):
-    y = generator(x, latent_, name="generator", dtype=tf.float16)
+    y = generator(x, latent_, name="generator", dtype=tf.float16, training=True)
 
 y = tf.minimum(y, 1)
 
@@ -31,6 +31,7 @@ if not os.path.exists('output'):
     os.makedirs('output')
 
 files = glob.glob('input/*')
+print(files)
 images = []
 
 for file in files:
@@ -41,12 +42,18 @@ for file in files:
     images.append(image)
 
 with tf.Session(config=config) as sess:
-    saver = tf.train.import_meta_graph('checkpoints/model.ckpt-34000.meta')
+    saver = tf.train.import_meta_graph('checkpoints/model.ckpt-200001.meta')
     saver.restore(sess, tf.train.latest_checkpoint('checkpoints'))
 
     # Our operations on the frame come here
-    for idx in range(0, len(images), 5):
-        images_out = sess.run(y, feed_dict={x: images[idx:idx + 5]})
-        images_out = images_out[..., ::-1] * 255
-        for idy, image in enumerate(images_out):
-            cv2.imwrite(f'output/{idx+idy:02d}.jpg', image)
+    label = [[1., 1., 0., 0., 0.],
+             [1., 1., 0., 0., 0.],
+             [0., 1., 1., 0., 0.],
+             [1., 0., 0., 1., 0.],
+             [1., 0., 0., 0., 0.],
+             [1., 1., 0., 0., 0.]]
+    # print(label.shape)
+    images_out = sess.run(y, feed_dict={x: images, latent: label})
+    images_out = images_out[..., ::-1] * 255
+    for idy, image in enumerate(images_out):
+        cv2.imwrite(f'output/{idy:02d}_.jpg', image)

@@ -89,12 +89,10 @@ with tf.name_scope('losses'):
     loss_d_x = tf.nn.softplus(d_fake) + tf.nn.softplus(-d_real)
     loss_d = loss_d_x + gp + loss_d_cls
 
-update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-with tf.control_dependencies(update_ops):
     D_solver = loss_scale_optimizer_D.minimize(loss_d, var_list=D_var, global_step=global_step)
     G_solver = loss_scale_optimizer_G.minimize(loss_g, var_list=G_var)
 
-    training_op = tf.group(D_solver, G_solver)
+    training_op = tf.group([D_solver, G_solver, update_ops])
 
 # losses
 tf.summary.scalar('cls/d', loss_d_cls)
