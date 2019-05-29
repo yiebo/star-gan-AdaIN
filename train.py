@@ -17,9 +17,10 @@ file_list = glob.glob("TFRECORD/celebA*.tfrecord")
 it = iterator(file_list, BATCH_SIZE)
 
 x, latent_real = it.get_next()
+training = tf.constant(True, dtype=tf.bool)
 
 with tf.name_scope('latent_input'):
-    latent_std = tf.random_normal(tf.shape(latent_real), mean=0.0, stddev=0.01, dtype=tf.float32)
+    latent_std = tf.random_normal(tf.shape(latent_real), mean=0.0, stddev=0.05, dtype=tf.float32)
     latent_real_in = latent_real + latent_std
     latent_random = tf.random_normal([tf.shape(latent_real)[0], 128], dtype=tf.float32)
     latent_real_in_ = tf.concat([latent_real_in, latent_random], 1)
@@ -28,42 +29,40 @@ with tf.name_scope('latent_input'):
     # latent_fake = tf.random_shuffle(latent_real)
     latent_fake = tf.reverse(latent_real, [0])
 
-    latent_std = tf.random_normal(tf.shape(latent_real), mean=0.0, stddev=0.01, dtype=tf.float32)
+    latent_std = tf.random_normal(tf.shape(latent_real), mean=0.0, stddev=0.05, dtype=tf.float32)
     latent_fake_in = latent_fake + latent_std
     latent_random = tf.random_normal([tf.shape(latent_real)[0], 128], dtype=tf.float32)
     latent_fake_in_ = tf.concat([latent_fake_in, latent_random], 1)
 
 with tf.variable_scope('generator', dtype=tf.float16,
                        custom_getter=float32_variable_storage_getter):
-    y = generator(x, latent_fake_in_, name="generator", dtype=tf.float16, training=True)
-    x_ = generator(y, latent_real_in_, name="generator", dtype=tf.float16, training=True)
+    y = generator(x, latent_fake_in_, training=training, dtype=tf.float16)
+    x_ = generator(y, latent_real_in_, training=training, dtype=tf.float16)
 
 
 with tf.variable_scope('discriminator', dtype=tf.float16,
                        custom_getter=float32_variable_storage_getter):
-    d_real, latent_real_ = discriminator(x, laten_size, name='discriminator',
-                                         dtype=tf.float16, training=True)
-    d_fake, latent_fake_ = discriminator(y, laten_size, name='discriminator',
-                                         dtype=tf.float16, training=True)
+    d_real, latent_real_ = discriminator(x, laten_size, training=training, dtype=tf.float16)
+    d_fake, latent_fake_ = discriminator(y, laten_size, training=training, dtype=tf.float16)
 
 
 tf.train.create_global_step()
 global_step = tf.train.get_global_step()
 learning_rate_ = tf.train.exponential_decay(0.0005, global_step,
-                                            decay_steps=2000, decay_rate=0.95)
+                                            decay_steps=1000, decay_rate=0.98)
 
 G_var = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='generator')
 D_var = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope='discriminator')
 
 with tf.name_scope('D_optimizer'):
     D_optimizer = tf.train.AdamOptimizer(learning_rate_, beta1=0.5, name='D_solver')
-    loss_scale_manager_D = tf.contrib.mixed_precision.ExponentialUpdateLossScaleManager(5000, 100)
+    loss_scale_manager_D = tf.contrib.mixed_precision.ExponentialUpdateLossScaleManager(5000, 500)
     loss_scale_optimizer_D = tf.contrib.mixed_precision.LossScaleOptimizer(D_optimizer,
                                                                            loss_scale_manager_D)
 
 with tf.name_scope('G_optimizer'):
     G_optimizer = tf.train.AdamOptimizer(learning_rate_, beta1=0.5, name='G_solver')
-    loss_scale_manager_G = tf.contrib.mixed_precision.ExponentialUpdateLossScaleManager(5000, 100)
+    loss_scale_manager_G = tf.contrib.mixed_precision.ExponentialUpdateLossScaleManager(5000, 500)
     loss_scale_optimizer_G = tf.contrib.mixed_precision.LossScaleOptimizer(G_optimizer,
                                                                            loss_scale_manager_G)
 
@@ -72,8 +71,7 @@ with tf.name_scope('losses'):
 
     d_real = tf.reduce_mean(d_real)
     d_fake = tf.reduce_mean(d_fake)
-    # latent_real_ = tf.reduce_mean(latent_real_, axis=[1, 2])
-    # latent_fake_ = tf.reduce_mean(latent_fake_, axis=[1, 2])
+
     loss_d_cls = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
         logits=latent_real_, labels=latent_real_in))
     loss_g_cls = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
@@ -92,6 +90,7 @@ with tf.name_scope('losses'):
     D_solver = loss_scale_optimizer_D.minimize(loss_d, var_list=D_var, global_step=global_step)
     G_solver = loss_scale_optimizer_G.minimize(loss_g, var_list=G_var)
 
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     training_op = tf.group([D_solver, G_solver, update_ops])
 
 # losses
@@ -105,9 +104,13 @@ tf.summary.scalar('loss/cycle_loss', loss_cycle)
 tf.summary.scalar('loss/gp', gp)
 
 # images
-tf.summary.image('img/x', x, 1)
-tf.summary.image('img/x->y', tf.minimum(y, 1), 1)
-tf.summary.image('img/y->x_', tf.minimum(x_, 1), 1)
+tf.summary.image('img/x0', x, 1)
+tf.summary.image('img/y', tf.minimum(y, 1), 1)
+tf.summary.image('img/x1', tf.minimum(x_, 1), 1)
+
+# latent_fake = tf.maximum(tf.minimum(latent_fake, 1), 0)
+# latent_real = tf.maximum(tf.minimum(latent_real, 1), 0)
+
 tf.summary.image('label/x', tf.reshape(latent_real, [-1, 1, laten_size, 1]), 1)
 tf.summary.image('label/y', tf.reshape(latent_fake, [-1, 1, laten_size, 1]), 1)
 

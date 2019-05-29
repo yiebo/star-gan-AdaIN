@@ -2,7 +2,7 @@ import tensorflow as tf
 from ops import *
 
 
-def u_block_latent(x, latent, filters, training=False):
+def u_block_latent(x, latent, filters, training):
     with tf.variable_scope('layer_1'):
         x = tf.layers.conv2d(inputs=x, filters=filters,
                              kernel_size=3, strides=1, padding='SAME')
@@ -19,7 +19,7 @@ def u_block_latent(x, latent, filters, training=False):
     return x
 
 
-def u_block(x, filters, training=False):
+def u_block(x, filters, training):
 
     with tf.variable_scope('layer_1'):
         x = tf.layers.conv2d(inputs=x, filters=filters,
@@ -36,7 +36,7 @@ def u_block(x, filters, training=False):
     return x
 
 
-def u_net(x, latent, name='u-net', training=False):
+def u_net(x, latent, training, name='u-net'):
     with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
         depth = [64, 128, 256, 512]
         skip_connections = []
@@ -68,7 +68,7 @@ def u_net(x, latent, name='u-net', training=False):
     return x
 
 
-def generator_mapping(x, name='G_mapping', training=False):
+def generator_mapping(x, training, name='G_mapping'):
     with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
         depth = [256] * 5
         for idx, filters in enumerate(depth):
@@ -81,7 +81,7 @@ def generator_mapping(x, name='G_mapping', training=False):
         return x
 
 
-def generator(x, latent, name, dtype=tf.float32, training=False):
+def generator(x, latent, training, name='generator', dtype=tf.float32):
     x = tf.cast(x, dtype=dtype)
     latent = tf.cast(latent, dtype=dtype)
 
@@ -93,7 +93,7 @@ def generator(x, latent, name, dtype=tf.float32, training=False):
     return x
 
 
-def discriminator(x, laten_size, name, dtype=tf.float32, training=False):
+def discriminator(x, laten_size, training, name='discriminator', dtype=tf.float32):
     x = tf.cast(x, dtype=dtype)
 
     with tf.variable_scope(name, reuse=tf.AUTO_REUSE):

@@ -42,7 +42,9 @@ if __name__ == '__main__':
     path = '../DATASETS/celebA'
     output_path = 'TFRECORD'
     image_path = f'{path}/img_align_celeba'
-    labels = [21, 40] + [9, 12, 10]
+    labels = [21, 40, 9, 12, 10]
+    # gender, young, black, brown, blond]
+    # 32, 22
 
     if not os.path.exists(output_path):
         os.makedirs(output_path)
