@@ -42,7 +42,8 @@ if __name__ == '__main__':
     path = '../DATASETS/celebA'
     output_path = 'TFRECORD'
     image_path = f'{path}/img_align_celeba'
-    labels = [21, 40, 9, 12, 10]
+    labels = [21, 40, 9, 12, 10, 32, 22]
+    bald = 5
     # gender, young, black, brown, blond]
     # 32, 22
 
@@ -62,10 +63,10 @@ if __name__ == '__main__':
             tfrecord_writer.close()
             tfrecord_writer = tf.python_io.TFRecordWriter(
                 f'{output_path}/celebA_{tfrecord_idx:03d}.tfrecord')
-
-        label = [int(instance[x]) for x in labels]
-        file_path = f'{image_path}/{instance[0]}'
-        example = tfrecord_example(file_path, label)
-        tfrecord_writer.write(example.SerializeToString())
-        idx += 1
+        if int(instance[11]) == 0:
+            label = [int(instance[x]) for x in labels]
+            file_path = f'{image_path}/{instance[0]}'
+            example = tfrecord_example(file_path, label)
+            tfrecord_writer.write(example.SerializeToString())
+            idx += 1
     tfrecord_writer.close()
